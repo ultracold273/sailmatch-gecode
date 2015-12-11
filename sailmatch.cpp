@@ -54,9 +54,11 @@ protected:
 	const SailMatchOptions& opt;
 	IntVarArray timeSlots;
 public:
-	SailMatch(const SailMatchOptions& _opt) : Script(_opt), opt(_opt), timeSlots(*this, 1) {
+	SailMatch(const SailMatchOptions& _opt) : Script(_opt), opt(_opt), timeSlots(*this, 1, 1, 9) {
 		std::cout << "Boats Num: " << opt.boats() << std::endl;
 		std::cout << "Skippers Num: " << opt.skippers() << std::endl;
+		rel(*this, timeSlots[0] == 1);
+		branch(*this, timeSlots, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
 	}
 	// Search Support
 	SailMatch(bool share, SailMatch& s) : Script(share, s), opt(s.opt) {
@@ -77,6 +79,6 @@ int main(int argc, char * argv[]) {
 	opt.solutions(1);
 	opt.parse(argc, argv);
 
-	Script::run<SailMatch, BAB, SailMatchOptions>(opt);
+	Script::run<SailMatch, DFS, SailMatchOptions>(opt);
 	return 0;
 }
