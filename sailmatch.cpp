@@ -21,31 +21,31 @@ using namespace Gecode;
 
 class SailMatchOptions : public Options {
 private:
-	int numboats;
-	int numskippers;
+	int _boats;
+	int _skippers;
 public:
-	SailMatchOptions(const char * s, int boats0, int skippers0) : Options(s), numboats(boats0), numskippers(skippers0){}
+	SailMatchOptions(const char * s, int boats0, int skippers0) : Options(s), _boats(boats0), _skippers(skippers0){}
 	void parse(int& argc, char * argv[]) {
 		Options::parse(argc, argv);
 		for(int i = 0;i < argc;i++) {
 			if (!strncmp(argv[i], "-boats", 7) && i + 1 < argc) {
-				numboats = atoi(argv[i+1]);
-				if (numboats == 0) {
+				_boats = atoi(argv[i+1]);
+				if (_boats == 0) {
 					std::cerr << "Invalid Argument for boats" << argv[i + 1] << std::endl;
 				}
 				i++;
 			}
 			if (!strncmp(argv[i], "-skippers", 10) && i + 1 < argc) {
-				numskippers = atoi(argv[i+1]);
-				if (numskippers == 0) {
+				_skippers = atoi(argv[i+1]);
+				if (_skippers == 0) {
 					std::cerr << "Invalid Argument for skippers" << argv[i + 1] << std::endl;
 				}
 				i++;
 			}
 		}
 	}
-	inline int boats() const {return numboats;}
-	inline int skippers() const {return numskippers;}
+	inline int boats() const {return _boats;}
+	inline int skippers() const {return _skippers;}
 };
 
 
