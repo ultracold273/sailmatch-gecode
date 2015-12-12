@@ -19,6 +19,8 @@ $(OBJ): $(SRC)
 	$(CC) -I$(INCS) -c $(SRC)
 else
 $(TAR): $(SRC)
-	$(CC) $(CFLAGS) -F$(LIBS) -stdlib=libstdc++ -framework gecode -o $(TAR) $(SRC)
+	$(CC) $(CFLAGS) -F$(LIBS) -stdlib=libstdc++ -std=gnu++11 -framework gecode -o $(TAR) $(SRC)
 endif
 
+clean: $(TAR) $(OBJ)
+	rm $(TAR) $(OBJ)
