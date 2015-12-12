@@ -16,8 +16,13 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 
 using namespace Gecode;
+
+#define CAL_FLIGHT(x, y) ((int) ceil(((float) x) * (x - 1) / y))
+#define CAL_MATCH(x) (x * (x - 1) / 2)
+
 
 class SailMatchOptions : public Options {
 private:
@@ -51,18 +56,38 @@ public:
 
 class SailMatch : public Script {
 protected:
-	const SailMatchOptions& opt;
+	const int boats;
+	const int skippers;
+	const int matches;
+	const int flights;
+	const int matchesPerFlight;
 	IntVarArray timeSlots;
+	IntVarArray state;
+	IntVarArray change;
+	IntVarArray totalChanges;
+	const SailMatchOptions& opt;
 public:
-	SailMatch(const SailMatchOptions& _opt) : Script(_opt), opt(_opt), timeSlots(*this, 1, 1, 9) {
-		std::cout << "Boats Num: " << opt.boats() << std::endl;
-		std::cout << "Skippers Num: " << opt.skippers() << std::endl;
+	SailMatch(const SailMatchOptions& _opt) : Script(_opt), boats(_opt.boats()), skippers(_opt.skippers()), matches(CAL_MATCH(_opt.skippers())), flights(CAL_FLIGHT(_opt.skippers(), _opt.boats())), matchesPerFlight(_opt.boats()/2), opt(_opt) {
+	/*	
+		std::cout << "Boats Num: " << boats << std::endl;
+		std::cout << "Skippers Num: " << skippers << std::endl;
+		std::cout << "Matches Num: " << matches << std::endl;
+		std::cout << "Flights Num: " << flights << std::endl;
+		std::cout << "Matches per Flights Num: " << matchesPerFlight << std::endl;
+	*/
+		timeSlots = IntVarArray(*this, skippers * matches, -2, skippers);
+		state = IntVarArray(*this, skippers * flights, 0, 4);
+		change = IntVarArray(*this, skippers * (flights - 1), 0, 1);
+		totalChanges = IntVarArray(*this, skippers);
 		rel(*this, timeSlots[0] == 1);
 		branch(*this, timeSlots, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
 	}
 	// Search Support
-	SailMatch(bool share, SailMatch& s) : Script(share, s), opt(s.opt) {
+	SailMatch(bool share, SailMatch& s) : Script(share, s), boats(s.boats), skippers(s.skippers), matches(s.matches), flights(s.flights), matchesPerFlight(s.matchesPerFlight), opt(s.opt) {
 		timeSlots.update(*this, share, s.timeSlots);
+		state.update(*this, share, s.state);
+		change.update(*this, share, s.change);
+		totalChanges.update(*this, share, s.totalChanges);
 	}
 	virtual Script * copy(bool share) {
 		return new SailMatch(share, *this);
