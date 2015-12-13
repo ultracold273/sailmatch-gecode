@@ -240,7 +240,7 @@ public:
 		totalBoatChanges = expr(*this, sum(totalChanges));
 		// Symmetric Breaking
 		for(int i = 0;i < 2 * matchesPerFlight;i++) {
-			rel(*this, time[i] == i);
+			rel(*this, timeMat(i/2, i%2) == i);
 		}
 		
 		branch(*this, time, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
