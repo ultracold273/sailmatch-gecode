@@ -232,6 +232,8 @@ public:
 				}
 			}
 		}
+		// V8
+		totalBoatChanges = expr(*this, sum(totalChanges));
 		// Symmetric Breaking
 		for(int i = 0;i < 2 * matchesPerFlight;i++) {
 			rel(*this, time[i] == i);
@@ -242,14 +244,14 @@ public:
 	// Optimization Criteria
 	virtual void constrain(const Space& _cur) {
 		const SailMatch& cur = static_cast<const SailMatch&>(_cur);
-		// V8
-		totalBoatChanges = expr(*this, sum(totalChanges));
+		// V8_copy
+		IntVar cpTotalBoatChanges = expr(*this, totalBoatChanges);
 		// C10
 		int curTotalBoatChanges = 0;
 		for (int i = 0;i < skippers;i++) {
 			curTotalBoatChanges += cur.totalChanges[i].val();
 		}
-		rel(*this, totalBoatChanges < curTotalBoatChanges);
+		rel(*this, cpTotalBoatChanges < curTotalBoatChanges);
 	}
 	// Search Support
 	SailMatch(bool share, SailMatch& s) : Script(share, s), boats(s.boats), skippers(s.skippers), matches(s.matches), flights(s.flights), matchesPerFlight(s.matchesPerFlight), opt(s.opt) {
