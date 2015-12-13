@@ -232,6 +232,11 @@ public:
 		for(int i = 0;i < matches;i++) {
 			rel(*this, timeMat(i, 0) < timeMat(i, 1));
 		}
+		for (int i = 0;i < matches;i++) {
+			for (int j = i + 1;j < matches;j++) {
+				rel(*this, timeMat(i, 0) != timeMat(j, 0) || timeMat(i, 1) != timeMat(j, 1));
+			}
+		}
 		// Skippers in a flight differs
 		for(int i = 0;i < flights;i++) {
 			distinct(*this, timeMat.slice(i * matchesPerFlight,  (i + 1) * matchesPerFlight, 0, 2));
@@ -327,7 +332,7 @@ public:
 
 int main(int argc, char * argv[]) {
 	SailMatchOptions opt("SailMatchScheduling", 8, 8);
-	opt.solutions(1);
+	opt.solutions(0);
 	opt.parse(argc, argv);
 
 	Script::run<SailMatch, BAB, SailMatchOptions>(opt);
