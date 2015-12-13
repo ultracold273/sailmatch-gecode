@@ -8,6 +8,8 @@
  * http://www.dcs.gla.ac.uk/~ciaran/papers/cp2015-boats-paper.pdf
  * by Craig Macdonald, Ciaran McCreesh, ALice Miller, Patrick Prosser
  * on CP2015
+ *
+ * Usage: <prg_name> -boats <num_boats> -skippers <num_skippers>
  */
 
 #include <gecode/int.hh>
@@ -68,6 +70,7 @@ protected:
 	IntVarArray match;
 	IntVarArray modMatch;
 	IntVarArray time;
+	IntVar totalBoatChanges;
 	const SailMatchOptions& opt;
 public:
 	SailMatch(const SailMatchOptions& _opt) : Script(_opt), boats(_opt.boats()), skippers(_opt.skippers()), matches(CAL_MATCH(_opt.skippers())), flights(CAL_FLIGHT(_opt.skippers(), _opt.boats())), matchesPerFlight(_opt.boats()/2), opt(_opt) {
@@ -216,7 +219,37 @@ public:
 			distinct(*this, modMatchMat.row(i));
 		}
 		// V7
+		time = IntVarArray(*this, matches * 2, 0, skippers - 1);
+		Matrix<IntVarArray> timeMat(time, matches, 2);
+		for(int i = 0;i < matches;i++) {
+			rel(*this, timeMat(i, 0) != timeMat(i, 1));
+		}
+		// C9
+		for(int k = 0;k < matches;k++) {
+			for(int i = 0;i < skippers;i++) {
+				for (int j = i + 1;j < skippers;j++) {
+					rel(*this, matchMat(i, j) != k || (timeMat(k, 0) == i && timeMat(k, 1) == j));
+				}
+			}
+		}
+		// Symmetric Breaking
+		for(int i = 0;i < 2 * matchesPerFlight;i++) {
+			rel(*this, time[i] == i);
+		}
+		
 		branch(*this, time, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
+	}
+	// Optimization Criteria
+	virtual void constrain(const Space& _cur) {
+		const SailMatch& cur = static_cast<const SailMatch&>(_cur);
+		// V8
+		totalBoatChanges = expr(*this, sum(totalChanges));
+		// C10
+		int curTotalBoatChanges = 0;
+		for (int i = 0;i < skippers;i++) {
+			curTotalBoatChanges += cur.totalChanges[i].val();
+		}
+		rel(*this, totalBoatChanges < curTotalBoatChanges);
 	}
 	// Search Support
 	SailMatch(bool share, SailMatch& s) : Script(share, s), boats(s.boats), skippers(s.skippers), matches(s.matches), flights(s.flights), matchesPerFlight(s.matchesPerFlight), opt(s.opt) {
@@ -224,14 +257,57 @@ public:
 		state.update(*this, share, s.state);
 		change.update(*this, share, s.change);
 		totalChanges.update(*this, share, s.totalChanges);
+		match.update(*this, share, s.match);
+		modMatch.update(*this, share, s.modMatch);
+		time.update(*this, share, s.time);
+		totalBoatChanges.update(*this, share, s.totalBoatChanges);
 	}
 	virtual Script * copy(bool share) {
 		return new SailMatch(share, *this);
 	}
 	// print Solution
 	void print(std::ostream& os) const {
-		os << "Boats Num: " << opt.boats() << std::endl;
-		os << "Skippers Num: " << opt.skippers() << std::endl;
+		os << "Basic Parameter Printing: " << std::endl;
+		os << "Boats Num: " << boats << std::endl;
+		os << "Skippers Num: " << skippers << std::endl;
+		os << "Flights Num: " << flights << std::endl;
+		os << "Matches Per Filght: " << matchesPerFlight << std::endl;
+		os << std::endl << "Constraint Programming Result: " << std::endl;
+		os << "Info for Each Skippers: " << std::endl;
+		for (int i = 0;i < skippers;i++) {
+			os << "Skipper " << i << ": ";
+			for (int j = 0; j < flights;j++) {
+				int stVal = state[i * flights + j].val(); 
+				char stChar;
+				switch(stVal) {
+					case 0: stChar = 'F';break;
+					case 1: stChar = 'M';break;
+					case 2: stChar = 'L';break;
+					case 3: stChar = 'B';break;
+					case 4: stChar = 'E';break;
+					default: stChar = '?';break;
+				}
+				os << stChar << "|";
+			}
+			os << std::endl;
+			for (int j = 0;j < flights;j++) {
+				os << "Flight " << j << ": ";
+				for (int k = 0;k < matchesPerFlight;k++) {
+					os << timeSlots[i * matches + j * matchesPerFlight + k].val() << " ";
+				}
+				os << std::endl;
+			}
+		}
+		os << "Print Schedule: " << std::endl;
+		for (int i = 0;i < flights;i++) {
+			os << i << ": ";
+			for (int j = 0;j < matchesPerFlight;j++) {
+				os << "(" << time[2 * (i * matchesPerFlight + j)];
+				os << "," << time[2 * (i * matchesPerFlight + j)];
+				os << ") ";
+			}
+			os << std::endl;
+		}
 	}
 };
 
@@ -240,6 +316,6 @@ int main(int argc, char * argv[]) {
 	opt.solutions(1);
 	opt.parse(argc, argv);
 
-	Script::run<SailMatch, DFS, SailMatchOptions>(opt);
+	Script::run<SailMatch, BAB, SailMatchOptions>(opt);
 	return 0;
 }
