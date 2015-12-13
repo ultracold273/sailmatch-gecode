@@ -50,6 +50,8 @@ public:
 				i++;
 			}
 		}
+		std::cerr << "Echo Boats: " << _boats << std::endl;
+		std::cerr << "Echo Skippers: " << _skippers << std::endl;
 	}
 	inline int boats() const {return _boats;}
 	inline int skippers() const {return _skippers;}
