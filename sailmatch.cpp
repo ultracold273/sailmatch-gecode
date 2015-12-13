@@ -71,6 +71,10 @@ protected:
 	IntVarArray modMatch;
 	IntVarArray time;
 	IntVar totalBoatChanges;
+	IntVarArray positions;
+	IntVarArray skipImbalance;
+	IntVarArray skipMaxImbalance;
+	IntVar maxImbalance;
 	const SailMatchOptions& opt;
 public:
 	SailMatch(const SailMatchOptions& _opt) : Script(_opt), boats(_opt.boats()), skippers(_opt.skippers()), matches(CAL_MATCH(_opt.skippers())), flights(CAL_FLIGHT(_opt.skippers(), _opt.boats())), matchesPerFlight(_opt.boats()/2), opt(_opt) {
@@ -246,16 +250,60 @@ public:
 		}
 		// V8
 		totalBoatChanges = expr(*this, sum(totalChanges));
+		// C11
+		rel(*this, totalBoatChanges <= 6);
 		// Symmetric Breaking
 		for(int i = 0;i < 2 * matchesPerFlight;i++) {
 			rel(*this, timeMat(i/2, i%2) == i);
 		}
+		// V9
+		positions = IntVarArray(*this, skippers * matches, 0, 1);
+		Matrix<IntVarArray> posMat(positions, skippers, matches);
+		// C12
+		for(int i = 0;i < skippers;i++) {
+			for(int j = 0;j < flights;j++) {
+				for(int k = 0;k < matchesPerFlight;k++) {
+					rel(*this, posMat(i, j * matchesPerFlight + k) != 1 || tSlotMat(i, j * matchesPerFlight + k) >= 0);
+				}
+			}
+		}
+		// V10
+		skipImbalance = IntVarArray(*this, skippers * matchesPerFlight, 0, skippers - 1);
+		Matrix<IntVarArray> skipImbalanceMat(skipImbalance, skippers, matchesPerFlight);
+		// C13
+		IntVarArgs posCollector(flights);
+		for (int i = 0;i < skippers;i++) {
+			for (int j = 0;j < matchesPerFlight;j++) {
+				for (int k = 0;k < flights;k++) {
+					posCollector[k] = posMat(i, k * matchesPerFlight + j);
+				}
+				rel(*this, skipImbalanceMat(i, j) == abs((skippers - 1) / matchesPerFlight - sum(posCollector)));
+			}
+		}
+		// V11
+		skipMaxImbalance = IntVarArray(*this, skippers, 0, skippers);
+		// C14
+		for(int i = 0;i < skippers;i++) {
+			rel(*this, skipMaxImbalance[i] == max(skipImbalanceMat.col(i)));
+		}
+		// V12 imbalance is just skipMaxImbalance
+		// V13 and C15
+		maxImbalance = expr(*this, max(skipMaxImbalance));
 		
 		branch(*this, time, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
 	}
 	// Optimization Criteria
 	virtual void constrain(const Space& _cur) {
 		const SailMatch& cur = static_cast<const SailMatch&>(_cur);
+		IntVar cpMaxImbalance = expr(*this, maxImbalance);
+		int curMaxImbalance = 0;
+		for (int i = 0;i < skippers;i++) {
+			if (curMaxImbalance < cur.skipImbalance[i].val()) {
+				curMaxImbalance = cur.skipMaxImbalance[i].val();
+			}
+		}
+		rel(*this, cpMaxImbalance < curMaxImbalance);
+		/* Stage 1 Optimization
 		// V8_copy
 		IntVar cpTotalBoatChanges = expr(*this, totalBoatChanges);
 		// C10
@@ -264,6 +312,7 @@ public:
 			curTotalBoatChanges += cur.totalChanges[i].val();
 		}
 		rel(*this, cpTotalBoatChanges < curTotalBoatChanges);
+		*/
 	}
 	// Search Support
 	SailMatch(bool share, SailMatch& s) : Script(share, s), boats(s.boats), skippers(s.skippers), matches(s.matches), flights(s.flights), matchesPerFlight(s.matchesPerFlight), opt(s.opt) {
@@ -275,6 +324,10 @@ public:
 		modMatch.update(*this, share, s.modMatch);
 		time.update(*this, share, s.time);
 		totalBoatChanges.update(*this, share, s.totalBoatChanges);
+		positions.update(*this, share, s.positions);
+		skipImbalance.update(*this, share, s.skipImbalance);
+		skipMaxImbalance.update(*this, share, s.skipMaxImbalance);
+		maxImbalance.update(*this, share, s.maxImbalance);
 	}
 	virtual Script * copy(bool share) {
 		return new SailMatch(share, *this);
