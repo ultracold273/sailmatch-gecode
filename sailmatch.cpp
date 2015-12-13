@@ -140,7 +140,7 @@ public:
 		for (int i = 0;i < skippers;i++) {
 			for (int j = 0;j < skippers;j++) {
 				if (i != j) {
-					count(*this, tSlotMat.row(i), j, IRT_EQ, 1); 
+					count(*this, tSlotMat.col(i), j, IRT_EQ, 1); 
 				}
 			}
 		}
@@ -167,7 +167,7 @@ public:
 		// Construct DFA
 		DFA d(0, t, finState);
 		for (int i = 0;i < skippers;i++) {
-			extensional(*this, stateMat.row(i), d);
+			extensional(*this, stateMat.col(i), d);
 		}
 		// C4
 		for (int i = 0;i < skippers;i++) {
@@ -177,7 +177,7 @@ public:
 		}
 		// C5
 		for (int i = 0;i < skippers;i++) {
-			rel(*this, totalChanges[i] == sum(changeMat.row(i)));
+			rel(*this, totalChanges[i] == sum(changeMat.col(i)));
 		}
 
 		// V5
@@ -220,7 +220,7 @@ public:
 		}
 		// C8
 		for (int i = 0;i < skippers;i++) {
-			distinct(*this, modMatchMat.row(i));
+			distinct(*this, modMatchMat.col(i));
 		}
 		// V7
 		time = IntVarArray(*this, matches * 2, 0, skippers - 1);
