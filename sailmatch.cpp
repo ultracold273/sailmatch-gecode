@@ -225,8 +225,16 @@ public:
 		// V7
 		time = IntVarArray(*this, matches * 2, 0, skippers - 1);
 		Matrix<IntVarArray> timeMat(time, matches, 2);
+		IntSet d0(0, skippers - 2);
+		IntSet d1(1, skippers - 1);
+		dom(*this, timeMat.row(0), d0);
+		dom(*this, timeMat.row(1), d1);
 		for(int i = 0;i < matches;i++) {
 			rel(*this, timeMat(i, 0) < timeMat(i, 1));
+		}
+		// Skippers in a flight differs
+		for(int i = 0;i < flights;i++) {
+			distinct(*this, timeMat.slice(i * matchesPerFlight,  (i + 1) * matchesPerFlight, 0, 2));
 		}
 		// C9
 		for(int k = 0;k < matches;k++) {
