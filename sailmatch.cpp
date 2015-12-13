@@ -85,7 +85,7 @@ public:
 		// Constraints for each skippers
 		// Variable Definition
 		// V1
-		timeSlots = IntVarArray(*this, skippers * matches);
+		timeSlots = IntVarArray(*this, skippers * matches, -2, skippers - 1);
 		Matrix<IntVarArray> tSlotMat(timeSlots, skippers, matches);
 		for(int i = 0;i < skippers;i++) {
 			int intArr[skippers + 1];
@@ -108,12 +108,16 @@ public:
 		// C1
 		for(int i = 0;i < skippers;i++) {
 			for (int j = 0;j < flights;j++) {
-				BoolVar b1, b2, b3, b4, b5;
+				BoolVar b1(*this, 0, 1);
+				BoolVar b2(*this, 0, 1); 
+				BoolVar b3(*this, 0, 1);
+				BoolVar b4(*this, 0, 1);
+				BoolVar b5(*this, 0, 1);
 				// state == FIRST
 				rel(*this, stateMat(i, j), IRT_EQ, 0, b1);
 				rel(*this, tSlotMat(i, j * matchesPerFlight), IRT_GQ, 0, b1);
 				// state == MID
-				IntVar cntGQzero;
+				IntVar cntGQzero(*this, 0, matchesPerFlight - 2);
 				rel(*this, stateMat(i, j), IRT_EQ, 1, b2);
 				count(*this, tSlotMat.slice(i, i + 1, j * matchesPerFlight + 1, (j + 1) * matchesPerFlight - 1), 0, IRT_GQ, cntGQzero);
 				rel(*this, cntGQzero, IRT_GQ, 1, b1);
@@ -121,12 +125,12 @@ public:
 				rel(*this, stateMat(i, j), IRT_EQ, 2, b3);
 				rel(*this, tSlotMat(i, (j + 1) * matchesPerFlight - 1), IRT_GQ, 0, b3);
 				// state == BYE
-				IntVar cntEQmOne;
+				IntVar cntEQmOne(*this, 0, matchesPerFlight);
 				rel(*this, stateMat(i, j), IRT_EQ, 3, b4);
 				count(*this, tSlotMat.slice(i, i + 1, j * matchesPerFlight, (j + 1) * matchesPerFlight), -1, IRT_EQ, cntEQmOne);
 				rel(*this, cntEQmOne, IRT_EQ, matchesPerFlight, b4);
 				// state == END
-				IntVar cntEQmTwo;
+				IntVar cntEQmTwo(*this, 0, matchesPerFlight);
 				rel(*this, stateMat(i, j), IRT_EQ, 4, b5);
 				count(*this, tSlotMat.slice(i, i + 1, j * matchesPerFlight, (j +1) * matchesPerFlight), -2, IRT_EQ, cntEQmTwo);
 				rel(*this, cntEQmTwo, IRT_EQ, matchesPerFlight, b5);
