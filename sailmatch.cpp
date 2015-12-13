@@ -222,7 +222,7 @@ public:
 		time = IntVarArray(*this, matches * 2, 0, skippers - 1);
 		Matrix<IntVarArray> timeMat(time, matches, 2);
 		for(int i = 0;i < matches;i++) {
-			rel(*this, timeMat(i, 0) != timeMat(i, 1));
+			rel(*this, timeMat(i, 0) < timeMat(i, 1));
 		}
 		// C9
 		for(int k = 0;k < matches;k++) {
