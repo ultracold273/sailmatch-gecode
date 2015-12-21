@@ -109,7 +109,7 @@ public:
 		change = IntVarArray(*this, skippers * (flights - 1), 0, 1);
 		Matrix<IntVarArray> changeMat(change, skippers, flights - 1);
 		// V4
-		totalChanges = IntVarArray(*this, skippers, 0, skippers);
+		totalChanges = IntVarArray(*this, skippers, 0, flights - 1);
 		// Constraint for Each Skippers
 		// C1
 		for(int i = 0;i < skippers;i++) {
@@ -122,14 +122,25 @@ public:
 				// state == FIRST
 				rel(*this, stateMat(i, j), IRT_EQ, 0, b1);
 				rel(*this, tSlotMat(i, j * matchesPerFlight), IRT_GQ, 0, b1);
+				for (int k = 1;k < matchesPerFlight;k++) {
+					rel(*this, tSlotMat(i, j * matchesPerFlight + k), IRT_EQ, -1, b1);
+				}
 				// state == MID
-				IntVar cntGQzero(*this, 0, matchesPerFlight - 2);
+				IntVar cntCulmOne(*this, 0, matchesPerFlight - 2);
+				IntVar cntCulmTwo(*this, 0, matchesPerFlight - 2);
 				rel(*this, stateMat(i, j), IRT_EQ, 1, b2);
-				count(*this, tSlotMat.slice(i, i + 1, j * matchesPerFlight + 1, (j + 1) * matchesPerFlight - 1), 0, IRT_GQ, cntGQzero);
-				rel(*this, cntGQzero, IRT_GQ, 1, b1);
+				count(*this, tSlotMat.slice(i, i + 1, j * matchesPerFlight + 1, (j + 1) * matchesPerFlight - 1), -1, IRT_EQ, cntCulmOne);
+				rel(*this, cntCulmOne, IRT_EQ, matchesPerFlight - 3, b2);
+				count(*this, tSlotMat.slice(i, i + 1, j * matchesPerFlight + 1, (j + 1) * matchesPerFlight - 1), -2, IRT_EQ, cntCulmTwo);
+				rel(*this, cntCulmTwo, IRT_EQ, 0, b2);
+				rel(*this, tSlotMat(i, j * matchesPerFlight), IRT_EQ, -1, b2);
+				rel(*this, tSlotMat(i, (j+1) * matchesPerFlight - 1), IRT_EQ, -1, b2);
 				// state == LAST
 				rel(*this, stateMat(i, j), IRT_EQ, 2, b3);
 				rel(*this, tSlotMat(i, (j + 1) * matchesPerFlight - 1), IRT_GQ, 0, b3);
+				for (int k = 0;k < matchesPerFlight - 1;k++) {
+					rel(*this, tSlotMat(i, j * matchesPerFlight + k), IRT_EQ, -1, b1);
+				}
 				// state == BYE
 				IntVar cntEQmOne(*this, 0, matchesPerFlight);
 				rel(*this, stateMat(i, j), IRT_EQ, 3, b4);
@@ -172,7 +183,7 @@ public:
 		// Accepts FIRST, MID, LAST and END
 		int finState[5] = {0, 1, 2, 4, -1};
 		// Construct DFA
-		DFA d(0, t, finState);
+		DFA d(5, t, finState);
 		for (int i = 0;i < skippers;i++) {
 			extensional(*this, stateMat.col(i), d);
 		}

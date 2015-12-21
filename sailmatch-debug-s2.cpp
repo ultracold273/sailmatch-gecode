@@ -73,6 +73,10 @@ protected:
 	IntVarArray modMatch;
 	IntVarArray time;
 	IntVar totalBoatChanges;
+	IntVarArray positions;
+	IntVarArray skipImbalance;
+	IntVarArray skipMaxImbalance;
+	IntVar maxImbalance;
 	const SailMatchOptions& opt;
 public:
 	SailMatch(const SailMatchOptions& _opt) : Script(_opt), boats(_opt.boats()), skippers(_opt.skippers()), matches(CAL_MATCH(_opt.skippers())), flights(CAL_FLIGHT(_opt.skippers(), _opt.boats())), matchesPerFlight(_opt.boats()/2), opt(_opt) {
@@ -87,14 +91,21 @@ public:
 		// Constraints for each skippers
 		// Variable Definition
 		// V1
-		timeSlots = IntVarArray(*this, skippers * matches, -2, skippers - 1);
-		Matrix<IntVarArray> tSlotMat(timeSlots, skippers, matches);
+		int matches2 = matchesPerFlight * flights;
+		timeSlots = IntVarArray(*this, skippers * matches2, -2, skippers - 1);
+		Matrix<IntVarArray> tSlotMat(timeSlots, skippers, matches2);
 		for(int i = 0;i < skippers;i++) {
 			int intArr[skippers + 1];
 			int * intArrPtr = intArr;
-			for (int k = -2;k < skippers;k++) if (k != i) *(intArrPtr++) = k;
+			for (int k = -2;k < skippers;k++) {
+				if (k != i) {
+					*intArrPtr = k;
+					intArrPtr = intArrPtr + 1;
+				}
+			}
+			//if (k != i) *(intArrPtr++) = k;
 			IntSet d(intArr, skippers + 1);
-			for (int j = 0; j < matches;j++) {
+			for (int j = 0; j < matches2;j++) {
 				dom(*this, tSlotMat(i, j), d);
 			}
 		}
@@ -115,11 +126,12 @@ public:
 				BoolVar b3(*this, 0, 1);
 				BoolVar b4(*this, 0, 1);
 				BoolVar b5(*this, 0, 1);
+
 				// state == FIRST
 				rel(*this, stateMat(i, j), IRT_EQ, 0, b1);
 				rel(*this, tSlotMat(i, j * matchesPerFlight), IRT_GQ, 0, b1);
 				for (int k = 1;k < matchesPerFlight;k++) {
-					rel(*this, tSlotMat(i, j * matchesPerFlight + k), IRT_EQ, -1, b1);
+					rel(*this, !b1 || tSlotMat(i, j * matchesPerFlight + k) == -1);
 				}
 				// state == MID
 				IntVar cntCulmOne(*this, 0, matchesPerFlight - 2);
@@ -127,15 +139,15 @@ public:
 				rel(*this, stateMat(i, j), IRT_EQ, 1, b2);
 				count(*this, tSlotMat.slice(i, i + 1, j * matchesPerFlight + 1, (j + 1) * matchesPerFlight - 1), -1, IRT_EQ, cntCulmOne);
 				count(*this, tSlotMat.slice(i, i + 1, j * matchesPerFlight + 1, (j + 1) * matchesPerFlight - 1), -2, IRT_EQ, cntCulmTwo);
-				rel(*this, cntCulmTwo, IRT_EQ, 0, b2);
-				rel(*this, cntCulmOne, IRT_EQ, matchesPerFlight - 3, b2);
-				rel(*this, tSlotMat(i, j * matchesPerFlight), IRT_EQ, -1, b2);
-				rel(*this, tSlotMat(i, (j+1) * matchesPerFlight - 1), IRT_EQ, -1, b2);
+				rel(*this, !b2 || cntCulmTwo == 0);
+				rel(*this, !b2 || cntCulmOne == matchesPerFlight - 3);
+				rel(*this, !b2 || tSlotMat(i, j * matchesPerFlight) == -1);
+				rel(*this, !b2 || tSlotMat(i, (j+1) * matchesPerFlight - 1) == -1);
 				// state == LAST
 				rel(*this, stateMat(i, j), IRT_EQ, 2, b3);
 				rel(*this, tSlotMat(i, (j + 1) * matchesPerFlight - 1), IRT_GQ, 0, b3);
 				for (int k = 0;k < matchesPerFlight - 1;k++) {
-					rel(*this, tSlotMat(i, j * matchesPerFlight + k), IRT_EQ, -1, b1);
+					rel(*this, !b3 || tSlotMat(i, j * matchesPerFlight + k) == -1);
 				}
 				// state == BYE
 				IntVar cntEQmOne(*this, 0, matchesPerFlight);
@@ -186,8 +198,7 @@ public:
 		// C4
 		for (int i = 0;i < skippers;i++) {
 			for(int j = 0;j < flights - 1;j++) {
-				rel(*this, changeMat(i, j) == 1 && (stateMat(i, j) == 3 && stateMat(i, j + 1) != 3));
-				rel(*this, changeMat(i, j) != 1 && (stateMat(i, j) != 3 || stateMat(i, j + 1) == 3));
+				rel(*this, changeMat(i, j) != 1 || (stateMat(i, j) == 3 && stateMat(i, j + 1) != 3));
 			}
 		}
 		// C5
@@ -211,17 +222,20 @@ public:
 		for (int i = 0;i < skippers;i++) {
 			for (int j = i + 1;j < skippers;j++) {
 				for (int k = 0;k < matches;k++) {
-					rel(*this, matchMat(i, j) != k && (tSlotMat(i, k) != j || tSlotMat(j, k) != i));
-					rel(*this, matchMat(i, j) == k && (tSlotMat(i, k) == j && tSlotMat(j, k) == i));
+					rel(*this, matchMat(i, j) != k || (tSlotMat(i, k) == j && tSlotMat(j, k) == i));
+					rel(*this, matchMat(i, j) == k || tSlotMat(i, k) != j || tSlotMat(j, k) != i);
 				}
 			}
 		}
+		//for (int i = 0;i < skippers;i++) {
+		//	channel(*this, match.slice(i*skippers, 1, skippers), 0, timeSlots.slice(i*matches, 1, matches), 0);
+		//}
 		// V6
 		modMatch = IntVarArray(*this, skippers * skippers, -1, flights - 1);
 		Matrix<IntVarArray> modMatchMat(modMatch, skippers, skippers);
 		for(int i = 0;i < skippers;i++) {
 			for(int j = i;j < skippers;j++) {
-				if (j == i) rel(*this, matchMat(i, j) == -1);
+				if (j == i) rel(*this, modMatchMat(i, j) == -1);
 				else {
 					rel(*this, modMatchMat(i, j) >= 0);
 					rel(*this, modMatchMat(i, j) == modMatchMat(j, i));
@@ -261,32 +275,69 @@ public:
 		for(int k = 0;k < matches;k++) {
 			for(int i = 0;i < skippers;i++) {
 				for (int j = i + 1;j < skippers;j++) {
-					rel(*this, matchMat(i, j) == k && (timeMat(k, 0) == i && timeMat(k, 1) == j));
-					rel(*this, matchMat(i, j) != k && (timeMat(k, 0) != i || timeMat(k, 1) != j));
+					rel(*this, matchMat(i, j) != k || (timeMat(k, 0) == i && timeMat(k, 1) == j));
+					rel(*this, matchMat(i, j) == k || timeMat(k, 0) != i || timeMat(k, 1) != j);
 				}
 			}
 		}
+
 		// V8
 		totalBoatChanges = expr(*this, sum(totalChanges));
 		// Symmetric Breaking
 		for(int i = 0;i < 2 * matchesPerFlight;i++) {
 			rel(*this, timeMat(i/2, i%2) == i);
 		}
+		// C11
+		rel(*this, totalBoatChanges <= 6);
+		// V9
+		positions = IntVarArray(*this, skippers * matches2, 0, 1);
+		Matrix<IntVarArray> posMat(positions, skippers, matches2);
+		// C12
+		for(int i = 0;i < skippers;i++) {
+			for(int j = 0;j < flights;j++) {
+				for(int k = 0;k < matchesPerFlight;k++) {
+					rel(*this, (posMat(i, j + k * flights) != 1 && tSlotMat(i, j * matchesPerFlight + k) < 0) || (posMat(i, j + k * flights) == 1 && tSlotMat(i, j * matchesPerFlight + k) >= 0));
+				}
+			}
+		}
+		// V10
+		skipImbalance = IntVarArray(*this, skippers * matchesPerFlight, 0, flights);
+		Matrix<IntVarArray> skipImbalanceMat(skipImbalance, skippers, matchesPerFlight);
+		//std::cerr << "check !" << std::endl;
+		// C13
+		for(int i = 0;i < skippers;i++) {
+			for(int j = 0;j < matchesPerFlight;j++) {
+				rel(*this, skipImbalanceMat(i, j) == abs((skippers - 1) /matchesPerFlight - sum(posMat.slice(i, i + 1, j * flights, (j + 1) * flights))));
+			}
+		}
+		// V11
+		skipMaxImbalance = IntVarArray(*this, skippers, 0, flights);
+		// C14
+		for(int i = 0;i < skippers;i++) {
+			rel(*this, skipMaxImbalance[i] == max(skipImbalanceMat.col(i)));
+		}
+		// V12 imbalance is just skipMaxImbalance
+		// V13 and C15
+		maxImbalance = expr(*this, max(skipMaxImbalance));
+
 		
 		branch(*this, time, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
+		branch(*this, timeSlots, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
+		branch(*this, match, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
 	}
 	// Optimization Criteria
 	virtual void constrain(const Space& _cur) {
 		const SailMatch& cur = static_cast<const SailMatch&>(_cur);
+		IntVar cpMaxImbalance = expr(*this, maxImbalance);
+		rel(*this, cpMaxImbalance < cur.maxImbalance.val());
 		// V8_copy
-		IntVar cpTotalBoatChanges = expr(*this, totalBoatChanges);
+		//IntVar cpTotalBoatChanges = expr(*this, totalBoatChanges);
 		// C10
-		int curTotalBoatChanges = cur.totalBoatChanges.val();
-		
-		for (int i = 0;i < skippers;i++) {
-			curTotalBoatChanges += cur.totalChanges[i].val();
-		}
-		rel(*this, cpTotalBoatChanges < curTotalBoatChanges);
+		//int curTotalBoatChanges = 0;
+		//for (int i = 0;i < skippers;i++) {
+		//	curTotalBoatChanges += cur.totalChanges[i].val();
+		//}
+		//rel(*this, totalBoatChanges < cur.totalBoatChanges.val());
 	}
 	// Search Support
 	SailMatch(bool share, SailMatch& s) : Script(share, s), boats(s.boats), skippers(s.skippers), matches(s.matches), flights(s.flights), matchesPerFlight(s.matchesPerFlight), opt(s.opt) {
@@ -298,12 +349,17 @@ public:
 		modMatch.update(*this, share, s.modMatch);
 		time.update(*this, share, s.time);
 		totalBoatChanges.update(*this, share, s.totalBoatChanges);
+		positions.update(*this, share, s.positions);
+		skipImbalance.update(*this, share, s.skipImbalance);
+		skipMaxImbalance.update(*this, share, s.skipMaxImbalance);
+		maxImbalance.update(*this, share, s.maxImbalance);
 	}
 	virtual Script * copy(bool share) {
 		return new SailMatch(share, *this);
 	}
 	// print Solution
 	void print(std::ostream& os) const {
+		int matches2 = matchesPerFlight * flights;
 		os << "Basic Parameter Printing: " << std::endl;
 		os << "Boats Num: " << boats << std::endl;
 		os << "Skippers Num: " << skippers << std::endl;
@@ -311,10 +367,13 @@ public:
 		os << "Matches Per Filght: " << matchesPerFlight << std::endl;
 		os << std::endl << "Constraint Programming Result: " << std::endl;
 		os << "Info for Each Skippers: " << std::endl;
+		Matrix<IntVarArray> stateMat(state, skippers, flights);
+		Matrix<IntVarArray> tSlotMat(timeSlots, skippers, matches2);
 		for (int i = 0;i < skippers;i++) {
 			os << "Skipper " << i << ": ";
 			for (int j = 0; j < flights;j++) {
-				int stVal = state[i * flights + j].val(); 
+//				int stVal = state[i * flights + j].val(); 
+				int stVal = stateMat(i, j).val(); 
 				char stChar;
 				switch(stVal) {
 					case 0: stChar = 'F';break;
@@ -330,21 +389,24 @@ public:
 			for (int j = 0;j < flights;j++) {
 				os << "Flight " << j << ": ";
 				for (int k = 0;k < matchesPerFlight;k++) {
-					os << timeSlots[i * matches + j * matchesPerFlight + k].val() << " ";
+					os << tSlotMat(i, j * matchesPerFlight + k).val() << " ";
 				}
 				os << std::endl;
 			}
 		}
 		os << "Print Schedule: " << std::endl;
+		Matrix<IntVarArray> timeMat(time, matches, 2);
 		for (int i = 0;i < flights;i++) {
 			os << i << ": ";
 			for (int j = 0;j < matchesPerFlight;j++) {
-				os << "(" << time[2 * (i * matchesPerFlight + j)];
-				os << "," << time[2 * (i * matchesPerFlight + j)];
+				os << "(" << timeMat(i * matchesPerFlight + j, 0).val();
+				os << "," << timeMat(i * matchesPerFlight + j, 1).val();
 				os << ") ";
 			}
 			os << std::endl;
 		}
+		os << "totalBoatChanges: " << totalBoatChanges.val() << std::endl;
+		os << "Max Balance: " << maxImbalance.val() << std::endl;
 	}
 };
 

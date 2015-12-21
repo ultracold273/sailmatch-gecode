@@ -1,6 +1,6 @@
 OS			= $(shell uname)
 CC			= g++
-TAR			= sailmatch
+TAR			= sailmatch-debug-s2
 CFLAGS		= -O3 -g -Wall -std=gnu++11
 SRC			= $(TAR).cpp
 ifeq ($(OS), Linux)
